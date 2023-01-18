@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const urlFmt = "http://dati.meteotrentino.it/service.asmx/ultimiDatiStazione?codice=%s"
+const urlFmt = "%s://dati.meteotrentino.it/service.asmx/ultimiDatiStazione?codice=%s"
 
 type LocalTime struct {
 	time.Time
@@ -60,6 +60,8 @@ var (
 	codStazione = flag.String("stazione", "T0147", "Codice della stazione meteo, si veda anagrafica http://dati.meteotrentino.it/service.asmx/listaStazioni")
 	interval    = flag.Duration("intervallo", 60*time.Second, "Intervallo di tempo tra le richieste successive. I dati sono aggiornati alla fonte ogni 15 minuti")
 	listenAddr  = flag.String("listen-addr", ":8089", "Indirizzo di rete su cui esporre il server HTTP")
+	urlSchema   = flag.String("url-schema", "https", "Schema dell'URL da cui ottenere i dati (http o https)")
+	url         string
 	tempMetric  = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "temperature_celsius",
@@ -84,7 +86,7 @@ var (
 )
 
 func getRealTimeData() (item *DatiOggi, err error) {
-	res, err := http.Get(fmt.Sprintf(urlFmt, *codStazione))
+	res, err := http.Get(url)
 	if err != nil {
 		return
 	}
@@ -137,7 +139,8 @@ func refresh() {
 
 func main() {
 	flag.Parse()
-	log.Println("Getting data from", fmt.Sprintf(urlFmt, *codStazione))
+	url = fmt.Sprintf(urlFmt, *urlSchema, *codStazione)
+	log.Println("Getting data from", url)
 	go refresh()
 	tick := time.NewTicker(*interval)
 	go func() {
