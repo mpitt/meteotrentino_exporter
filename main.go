@@ -118,6 +118,7 @@ func refresh() {
 		tempMetric.DeletePartialMatch(labels)
 		rainMetric.DeletePartialMatch(labels)
 		humidityMetric.DeletePartialMatch(labels)
+		return
 	}
 	// fmt.Printf("%#v\n", o)
 
