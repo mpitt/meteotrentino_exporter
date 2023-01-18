@@ -83,6 +83,12 @@ var (
 		},
 		[]string{"station_code", "place"},
 	)
+	stationsUpMetric = promauto.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "stations_up",
+			Help: "Number of stations successfully queried",
+		},
+	)
 )
 
 func getRealTimeData() (item *DatiOggi, err error) {
@@ -120,6 +126,7 @@ func refresh() {
 		tempMetric.DeletePartialMatch(labels)
 		rainMetric.DeletePartialMatch(labels)
 		humidityMetric.DeletePartialMatch(labels)
+		stationsUpMetric.Set(0)
 		return
 	}
 	// fmt.Printf("%#v\n", o)
@@ -135,6 +142,7 @@ func refresh() {
 	hums := o.Umidita.Umidita
 	lastHum := hums[len(hums)-1].RH
 	humidityMetric.With(labels).Set(lastHum)
+	stationsUpMetric.Set(1)
 }
 
 func main() {
