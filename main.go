@@ -103,7 +103,7 @@ func getRealTimeData() (item *DatiOggi, err error) {
 	if err != nil {
 		return
 	}
-	fmt.Println("Received and parsed data")
+	log.Println("Received and parsed data")
 	return
 }
 
@@ -137,7 +137,7 @@ func refresh() {
 
 func main() {
 	flag.Parse()
-	fmt.Println("Getting data from", fmt.Sprintf(urlFmt, *codStazione))
+	log.Println("Getting data from", fmt.Sprintf(urlFmt, *codStazione))
 	go refresh()
 	tick := time.NewTicker(*interval)
 	go func() {
