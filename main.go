@@ -20,12 +20,9 @@ type LocalTime struct {
 	time.Time
 }
 
-func (t *LocalTime) UnmarshalText(data []byte) error {
+func (t *LocalTime) UnmarshalText(data []byte) (err error) {
 	dataStr := string(data)
-	location, err := time.LoadLocation("Europe/Rome")
-	if err != nil {
-		return err
-	}
+	location := time.FixedZone("UTC+1", 1*60*60) // MeteoTrentino always uses CET, even during DST
 	t.Time, err = time.ParseInLocation("2006-01-02T15:04:05", dataStr, location)
 	return err
 }
