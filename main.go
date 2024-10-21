@@ -126,6 +126,10 @@ func refresh() {
 		"station_code": *codStazione,
 		"place":        "Rovereto",
 	}
+	var updated float64 = 0
+	now := time.Now()
+	lastAcceptableTimestamp := now.Add(-30 * time.Minute)
+
 	o, err := getRealTimeData()
 	if err != nil {
 		log.Println(err)
@@ -138,17 +142,39 @@ func refresh() {
 	// fmt.Printf("%#v\n", o)
 
 	temps := o.Temperature.TemperaturaAria
-	lastTemp := temps[len(temps)-1].Temperatura
-	tempMetric.With(labels).Set(lastTemp)
+	lastTemp := temps[len(temps)-1]
+	if lastTemp.Data.Time.After(lastAcceptableTimestamp) {
+		tempMetric.With(labels).Set(lastTemp.Temperatura)
+		updated = 1
+	} else {
+		log.Println("Rejected stale temperature sample with timestamp", lastTemp.Data)
+		log.Println("Current time", now.Format(time.RFC3339))
+		tempMetric.DeletePartialMatch(labels)
+	}
 
 	precs := o.Precipitazioni.Precipitazione
-	lastRain := precs[len(precs)-1].Pioggia
-	rainMetric.With(labels).Set(lastRain)
+	lastRain := precs[len(precs)-1]
+	if lastRain.Data.Time.After(lastAcceptableTimestamp) {
+		rainMetric.With(labels).Set(lastRain.Pioggia)
+		updated = 1
+	} else {
+		log.Println("Rejected stale rain sample with timestamp", lastRain.Data)
+		log.Println("Current time", now.Format(time.RFC3339))
+		rainMetric.DeletePartialMatch(labels)
+	}
 
 	hums := o.Umidita.Umidita
-	lastHum := hums[len(hums)-1].RH
-	humidityMetric.With(labels).Set(lastHum)
-	stationsUpMetric.Set(1)
+	lastHum := hums[len(hums)-1]
+	if lastHum.Data.Time.After(lastAcceptableTimestamp) {
+		humidityMetric.With(labels).Set(lastHum.RH)
+		updated = 1
+	} else {
+		log.Println("Rejected stale humidity sample with timestamp", lastHum.Data)
+		log.Println("Current time", now.Format(time.RFC3339))
+		humidityMetric.DeletePartialMatch(labels)
+	}
+
+	stationsUpMetric.Set(updated)
 }
 
 func main() {
