@@ -21,8 +21,13 @@ type LocalTime struct {
 }
 
 func (t *LocalTime) UnmarshalText(data []byte) error {
-	d := append(data, []byte("+01:00")...)
-	return t.Time.UnmarshalText(d)
+	dataStr := string(data)
+	location, err := time.LoadLocation("Europe/Rome")
+	if err != nil {
+		return err
+	}
+	t.Time, err = time.ParseInLocation("2006-01-02T15:04:05", dataStr, location)
+	return err
 }
 
 type TemperaturaAria struct {
@@ -44,7 +49,8 @@ type Precipitazioni struct {
 }
 
 type UmiditaRelativa struct {
-	RH float64 `xml:"rh"`
+	Data LocalTime `xml:"data"`
+	RH   float64   `xml:"rh"`
 }
 type UmiditaList struct {
 	Umidita []UmiditaRelativa `xml:"umidita_relativa"`
