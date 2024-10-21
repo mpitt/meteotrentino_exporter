@@ -64,6 +64,7 @@ type DatiOggi struct {
 
 var (
 	codStazione = flag.String("stazione", "T0147", "Codice della stazione meteo, si veda anagrafica http://dati.meteotrentino.it/service.asmx/listaStazioni")
+	locStazione = flag.String("localita", "Rovereto", "Località della stazione meteo")
 	interval    = flag.Duration("intervallo", 60*time.Second, "Intervallo di tempo tra le richieste successive. I dati sono aggiornati alla fonte ogni 15 minuti")
 	listenAddr  = flag.String("listen-addr", ":8089", "Indirizzo di rete su cui esporre il server HTTP")
 	urlSchema   = flag.String("url-schema", "https", "Schema dell'URL da cui ottenere i dati (http o https)")
@@ -124,7 +125,7 @@ func getRealTimeData() (item *DatiOggi, err error) {
 func refresh() {
 	labels := prometheus.Labels{
 		"station_code": *codStazione,
-		"place":        "Rovereto",
+		"place":        *locStazione,
 	}
 	var updated float64 = 0
 	now := time.Now()
