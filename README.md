@@ -12,8 +12,14 @@ https://dati.trentino.it.
     	Indirizzo di rete su cui esporre il server HTTP (default ":8089")
   -localita string
     	Località della stazione meteo (default "Rovereto")
+  -precipitazione
+    	Abilita o disabilita le precipitazioni (default true)
   -stazione string
     	Codice della stazione meteo, si veda anagrafica http://dati.meteotrentino.it/service.asmx/listaStazioni (default "T0147")
+  -temperatura
+    	Abilita o disabilita le temperature (default true)
+  -umidita
+    	Abilita o disabilita l'umidità (default true)
   -url-schema string
     	Schema dell'URL da cui ottenere i dati (http o https) (default "https")
 ```
