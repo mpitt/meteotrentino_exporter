@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -65,7 +66,11 @@ var (
 	interval    = flag.Duration("intervallo", 60*time.Second, "Intervallo di tempo tra le richieste successive. I dati sono aggiornati alla fonte ogni 15 minuti")
 	listenAddr  = flag.String("listen-addr", ":8089", "Indirizzo di rete su cui esporre il server HTTP")
 	urlSchema   = flag.String("url-schema", "https", "Schema dell'URL da cui ottenere i dati (http o https)")
+	toggleTemp = flag.Bool("temperatura", true, "Abilita o disabilita le temperature")
+	toggleRain = flag.Bool("precipitazione", true, "Abilita o disabilita le precipitazioni")
+	toggleHum = flag.Bool("umidita", true, "Abilita o disabilita l'umidità")
 	url         string
+	errMetricDisabled = errors.New("Metric is disabled")
 	tempMetric  = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "temperature_celsius",
@@ -119,12 +124,77 @@ func getRealTimeData() (item *DatiOggi, err error) {
 	return
 }
 
+func refreshTemp(s []TemperaturaAria, lastAcceptableTimestamp time.Time) (value float64, err error) {
+	if !*toggleTemp {
+		err = fmt.Errorf("%w: temperature", errMetricDisabled)
+		return
+	}
+	n := len(s)
+	if n < 1 {
+		err = fmt.Errorf("No samples in temperature series")
+		return
+	}
+	last := s[n-1]
+	if !last.Data.Time.After(lastAcceptableTimestamp) {
+		err = fmt.Errorf(
+			"Rejected stale temperature sample with timestamp %v (current time %v)", last.Data, time.Now().Format(time.RFC3339))
+		return
+	}
+	value = last.Temperatura
+	return
+}
+
+func refreshRain(s []Precipitazione, lastAcceptableTimestamp time.Time) (value float64, err error) {
+	if !*toggleRain {
+		err = fmt.Errorf("%w: rain", errMetricDisabled)
+		return
+	}
+	n := len(s)
+	if n < 1 {
+		err = fmt.Errorf("No samples in rain series")
+		return
+	}
+	last := s[n-1]
+	if !last.Data.Time.After(lastAcceptableTimestamp) {
+		err = fmt.Errorf(
+			"Rejected stale rain sample with timestamp %v (current time %v)", last.Data, time.Now().Format(time.RFC3339))
+		return
+	}
+	value = last.Pioggia
+	return
+}
+
+func refreshHum(s []UmiditaRelativa, lastAcceptableTimestamp time.Time) (value float64, err error) {
+	if !*toggleHum {
+		err = fmt.Errorf("%w: humidity", errMetricDisabled)
+		return
+	}
+	n := len(s)
+	if n < 1 {
+		err = fmt.Errorf("No samples in humidity series")
+		return
+	}
+	last := s[n-1]
+	if !last.Data.Time.After(lastAcceptableTimestamp) {
+		err = fmt.Errorf(
+			"Rejected stale humidity sample with timestamp %v (current time %v)", last.Data, time.Now().Format(time.RFC3339))
+		return
+	}
+	value = last.RH
+	return
+}
+
+func logMetricError(err error) {
+	if !errors.Is(err, errMetricDisabled) { log.Println(err) }
+}
+
 func refresh() {
 	labels := prometheus.Labels{
 		"station_code": *codStazione,
 		"place":        *locStazione,
 	}
 	var updated float64 = 0
+	var value float64
 	now := time.Now()
 	lastAcceptableTimestamp := now.Add(-30 * time.Minute)
 
@@ -140,36 +210,33 @@ func refresh() {
 	// fmt.Printf("%#v\n", o)
 
 	temps := o.Temperature.TemperaturaAria
-	lastTemp := temps[len(temps)-1]
-	if lastTemp.Data.Time.After(lastAcceptableTimestamp) {
-		tempMetric.With(labels).Set(lastTemp.Temperatura)
-		updated = 1
-	} else {
-		log.Println("Rejected stale temperature sample with timestamp", lastTemp.Data)
-		log.Println("Current time", now.Format(time.RFC3339))
+	value, err = refreshTemp(temps, lastAcceptableTimestamp)
+	if err != nil {
+		logMetricError(err)
 		tempMetric.DeletePartialMatch(labels)
+	} else {
+		tempMetric.With(labels).Set(value)
+		updated = 1
 	}
 
 	precs := o.Precipitazioni.Precipitazione
-	lastRain := precs[len(precs)-1]
-	if lastRain.Data.Time.After(lastAcceptableTimestamp) {
-		rainMetric.With(labels).Set(lastRain.Pioggia)
-		updated = 1
-	} else {
-		log.Println("Rejected stale rain sample with timestamp", lastRain.Data)
-		log.Println("Current time", now.Format(time.RFC3339))
+	value, err = refreshRain(precs, lastAcceptableTimestamp)
+	if err != nil {
+		logMetricError(err)
 		rainMetric.DeletePartialMatch(labels)
+	} else {
+		rainMetric.With(labels).Set(value)
+		updated = 1
 	}
 
 	hums := o.Umidita.Umidita
-	lastHum := hums[len(hums)-1]
-	if lastHum.Data.Time.After(lastAcceptableTimestamp) {
-		humidityMetric.With(labels).Set(lastHum.RH)
-		updated = 1
-	} else {
-		log.Println("Rejected stale humidity sample with timestamp", lastHum.Data)
-		log.Println("Current time", now.Format(time.RFC3339))
+	value, err = refreshHum(hums, lastAcceptableTimestamp)
+	if err != nil {
+		logMetricError(err)
 		humidityMetric.DeletePartialMatch(labels)
+	} else {
+		humidityMetric.With(labels).Set(value)
+		updated = 1
 	}
 
 	stationsUpMetric.Set(updated)
@@ -177,6 +244,10 @@ func refresh() {
 
 func main() {
 	flag.Parse()
+	if !(*toggleTemp || *toggleRain || *toggleHum) {
+		log.Println("No metric enabled, closing")
+		return
+	}
 	url = fmt.Sprintf(urlFmt, *urlSchema, *codStazione)
 	log.Println("Getting data from", url)
 	go refresh()
